@@ -4,3 +4,4 @@ samples/
 .env
 .venv/
 .DS_Store
+notes.txt
