@@ -65,16 +65,16 @@ All columns infer as nullable (CSV inference); actual null checks are in the fin
 
 ## 5. Known unknowns
 
-| # | Question | Why it matters | Resolve by |
-|---|---|---|---|
-| K-1 | Revenue definition: which statuses count, and which timestamp dates it | Status can't be read as "not yet shipped" (F-7), and there is no cancelled_at (F-8) | Decision in strategy/spec |
-| K-2 | As-of week: 2022-05-30 (last complete week, contains the F-15 spike) or 2022-05-23 (last week before the spike) | Sets the "current week" the founder sees | Decision in strategy |
-| K-3 | Return lag: how long after an order a return can land | Sets how many recent weeks are provisional | Query in spec stage |
-| K-4 | Timezone of timestamps | ISO week boundaries depend on it | Decision (proposed: assume UTC, log it) |
-| K-5 | Order 56 user attribution (F-4) | Source of truth for user on items | Decision (proposed: orders.user_id) |
-| K-6 | Customer definitions: active, new vs returning | Core v1 metrics | Spec |
-| K-7 | Event time for item-level metrics | Item created_at is unreliable (F-16) | Spec (proposed: orders.created_at) |
-| K-8 | Item-level shipped/delivered/returned timestamps vs order-level: not compared | Only matters if the spec uses item timestamps | Query if needed |
+| # | Question | Why it matters | Resolve by | Resolved by |
+|---|---|---|---|---|
+| K-1 | Revenue definition: which statuses count, and which timestamp dates it | Status can't be read as "not yet shipped" (F-7), and there is no cancelled_at (F-8) | Decision in strategy/spec | Decision 10 (K1-B) |
+| K-2 | As-of week: 2022-05-30 (last complete week, contains the F-15 spike) or 2022-05-23 (last week before the spike) | Sets the "current week" the founder sees | Decision in strategy | Decision 11 (K2-A) |
+| K-3 | Return lag: how long after an order a return can land | Sets how many recent weeks are provisional | Query in spec stage | Open: Spec 1 |
+| K-4 | Timezone of timestamps | ISO week boundaries depend on it | Decision (proposed: assume UTC, log it) | Decision 12 (K4-A) |
+| K-5 | Order 56 user attribution (F-4) | Source of truth for user on items | Decision (proposed: orders.user_id) | Decision 13 (K5-A) |
+| K-6 | Customer definitions: active, new vs returning | Core v1 metrics | Spec | Partly: active defined in decision 16; naming and new vs returning open for Spec 1 |
+| K-7 | Event time for item-level metrics | Item created_at is unreliable (F-16) | Spec (proposed: orders.created_at) | Open: Spec 1 |
+| K-8 | Item-level shipped/delivered/returned timestamps vs order-level: not compared | Only matters if the spec uses item timestamps | Query if needed | Open: only if Spec 1 uses item timestamps |
 
 ## 6. Carried to stage 4 (spec rule and test candidates)
 
