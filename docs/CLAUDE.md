@@ -1,0 +1,2 @@
+- Read docs/structure.md before creating any file. Do not create top-level folders not listed there without asking.
+- Do not run exploratory queries over full raw tables. Work from the models and files named in the dispatch, and use dbt unit tests for logic checks.

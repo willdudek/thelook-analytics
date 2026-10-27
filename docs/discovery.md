@@ -84,6 +84,7 @@ All columns infer as nullable (CSV inference); actual null checks are in the fin
 4. Invariant test: item status equals order status (F-6). Catches a change in the data.
 5. Schema tests: unique and not_null keys, relationships between tables (F-1, F-2).
 6. Reconciliation anchor: all-status sale_price total of 10,758,880.13 from raw should survive staging unchanged (F-10).
+7. Source test: item/order user mismatch count equals 4 (F-4); warn if it changes (#13).
 
 ## Appendix A: Profiling queries
 
