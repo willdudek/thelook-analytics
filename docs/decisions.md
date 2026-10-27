@@ -39,3 +39,4 @@
 | 35 | 2026-10-27 | first_qualifying_order_at lives on int_orders as a per-user value; no customer-grain model in Spec 1. returning_customers is computed by its own condition, never customers - new_customers. | Avoids a model that Spec 2's customer-month intermediate may supersede. An independent computation keeps T-17 able to fail (same reasoning as #21). | Will |
 | 36 | 2026-10-27 | category is nullable and untested until v1.1. | No v1 metric reads it (#15); profile it when it becomes a metric. | Will |
 | 37 | 2026-10-27 | Raw CSVs read as dbt-duckdb external sources; explicit casts in staging; no seeds, snapshots or new packages (spine via generate_series). | Keeps data out of the project (#1); types aren't left to CSV inference; new dependencies need asking. | Will |
+| 38 | 2026-10-27 | Dispatch prompts are stored in docsdispatches/ so reviews and redispatches cite a commited version. | Will |

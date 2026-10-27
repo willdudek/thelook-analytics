@@ -21,7 +21,10 @@ thelook-analytics/
 │   ├── strategy-brief.md  Stage 3 brief
 │   ├── decisions.md     Decisions log; one row per decision
 │   ├── structure.md     This file
-│   └── specs/           One spec per component (Spec 1, Spec 2)
+│   ├── specs/           One spec per component (Spec 1, Spec 2)
+│   └── dispatches/      Dispatch prompts as sent to the agent, one file per task ID
+
+
 ├── models/
 │   ├── staging/         One view per raw table: casts, renames, drops PII; source definitions (#14, F-11, F-19)
 │   ├── intermediate/    Item-grain and order-grain tables; attribution rules applied once (#13, #14)
