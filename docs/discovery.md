@@ -59,6 +59,7 @@ All columns infer as nullable (CSV inference); actual null checks are in the fin
 
 ### Anchor values
 - **F-21.** Hand-verified, ISO week 2022-05-30 (#27, Q17): customers = 3601, new_customers = 2361, returning_customers = 1240. new + returning = customers.
+- **F-22.** Spec review checks, 2026-10-27: 106,200 qualifying orders (status <> 'Cancelled') from 71,951 distinct customers. All 179 ISO weeks from 2019-01-07 to 2022-06-06 have orders. Rounding sale_price to DECIMAL(18,2) per row gives the same weekly net revenue as summing then rounding (0 weeks differ).
 
 
 ## 4. Constraints
