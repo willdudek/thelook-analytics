@@ -1,4 +1,4 @@
-# Weekly metrics (Spec 1) -- Spec v1.0.1
+# Weekly metrics (Spec 1) -- Spec v1.0.2
 
 Stage 4 (Spec) of the Two Brains loop. Drafted 2026-10-27.
 References: F-, C-, K- point to docs/discovery.md; # to docs/decisions.md; P-, M-, S-, I-, MT-, T-, U- are defined in this spec.
@@ -52,8 +52,8 @@ data/samples/ (gitignored, #19). Not used by tests; tests run on full data (#18)
 - dbt-core 1.8 or later (dbt unit tests) and dbt-duckdb, managed by uv in pyproject.toml / uv.lock.
 - dbt_project.yml at repo root holds materializations per layer and the `return_window_days` var (section 5).
 - profiles.yml at repo root points to the local dev.duckdb; no secrets (#18).
-- Open item E-1: whether pyproject.toml, uv.lock, dbt_project.yml, and profiles.yml already exist in the repo. If they do not, the first dispatch creates them before any model work.
-- Open item E-2: the installed dbt-core version. Unit tests (U-1 to U-5) need 1.8 or later. Check with `uv run dbt --version`; if dbt is not installed or is older, the setup dispatch pins dbt-core >= 1.8 and dbt-duckdb.
+- E-1 (answered 2026-10-27): pyproject.toml, uv.lock, dbt_project.yml, and profiles.yml do not exist. SETUP-01 creates them.
+- E-2 (answered 2026-10-27): dbt is not installed. SETUP-01 pins dbt-core >= 1.8 and dbt-duckdb.
 
 ### 2.5 Page outline (input to the mart; Spec 1b owns the build)
 
@@ -354,3 +354,4 @@ Decisions live in docs/decisions.md. This spec implements #10-#13, #21, #24-#28 
 |---|---|---|
 | v1.0 | 2026-10-27 | First version. |
 | v1.0.1 | 2026-10-27 | Removed references to chat-only working numbers (AM-, Q-); environment open items stated in full as E-1 and E-2. No rule or test changed. |
+| v1.0.2 | 2026-10-27 | E-1 and E-2 answered: no project files, dbt not installed; SETUP-01 creates them. No rule or test changed. |
