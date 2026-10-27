@@ -52,9 +52,14 @@ All columns infer as nullable (CSV inference); actual null checks are in the fin
 - **F-16.** `order_items.created_at` does not match the order's `created_at`: 102,442 items are earlier and 78,506 later, ranging from 3h58m before to 4 days after. Item created_at is not a reliable event time.
 - **F-17.** No order is placed before its user's `created_at`.
 - **F-18.** No timestamp carries timezone information.
+- **F-20.** Return lag (orders.created_at to returned_at, all 12,570 returned orders): min 0 days, p50 5, p90 8, p99 10, max 11. No long tail.
 
 ### PII
 - **F-19.** `users` holds first and last name, email, street address, postal code, latitude, and longitude. No v1 metric needs them.
+
+### Anchor values
+- **F-21.** Hand-verified, ISO week 2022-05-30 (#27, Q17): customers = 3601, new_customers = 2361, returning_customers = 1240. new + returning = customers.
+
 
 ## 4. Constraints
 
@@ -69,12 +74,12 @@ All columns infer as nullable (CSV inference); actual null checks are in the fin
 |---|---|---|---|---|
 | K-1 | Revenue definition: which statuses count, and which timestamp dates it | Status can't be read as "not yet shipped" (F-7), and there is no cancelled_at (F-8) | Decision in strategy/spec | Decision 10 (K1-B) |
 | K-2 | As-of week: 2022-05-30 (last complete week, contains the F-15 spike) or 2022-05-23 (last week before the spike) | Sets the "current week" the founder sees | Decision in strategy | Decision 11 (K2-A) |
-| K-3 | Return lag: how long after an order a return can land | Sets how many recent weeks are provisional | Query in spec stage | Open: Spec 1 |
+| K-3 | Return lag: how long after an order a return can land | Sets how many recent weeks are provisional | Query in spec stage | Decision 24 (option 1; F-20) |
 | K-4 | Timezone of timestamps | ISO week boundaries depend on it | Decision (proposed: assume UTC, log it) | Decision 12 (K4-A) |
 | K-5 | Order 56 user attribution (F-4) | Source of truth for user on items | Decision (proposed: orders.user_id) | Decision 13 (K5-A) |
-| K-6 | Customer definitions: active, new vs returning | Core v1 metrics | Spec | Partly: active defined in decision 16; naming and new vs returning open for Spec 1 |
-| K-7 | Event time for item-level metrics | Item created_at is unreliable (F-16) | Spec (proposed: orders.created_at) | Open: Spec 1 |
-| K-8 | Item-level shipped/delivered/returned timestamps vs order-level: not compared | Only matters if the spec uses item timestamps | Query if needed | Open: only if Spec 1 uses item timestamps |
+| K-6 | Customer definitions: active, new vs returning | Core v1 metrics | Spec | Decision 25 (option 1) |
+| K-7 | Event time for item-level metrics | Item created_at is unreliable (F-16) | Spec (proposed: orders.created_at) | Decision 26 (option 1) |
+| K-8 | Item-level shipped/delivered/returned timestamps vs order-level: not compared | Only matters if the spec uses item timestamps | Query if needed | Decision 26 (item timestamps dropped; comparison not needed) |
 
 ## 6. Carried to stage 4 (spec rule and test candidates)
 
@@ -179,4 +184,41 @@ WHERE o.created_at < u.created_at;
 -- Q15 user mismatch detail (F-4)
 SELECT i.id item_id, i.order_id, i.user_id item_user, o.user_id order_user, i.created_at, o.created_at
 FROM items i JOIN orders o USING (order_id) WHERE i.user_id <> o.user_id;
+
+-- Q16 return lag (F-20)
+SELECT COUNT(*) returned_orders,
+       MIN(date_diff('day', created_at, returned_at)) min_days,
+       quantile_cont(date_diff('day', created_at, returned_at), 0.5)  p50,
+       quantile_cont(date_diff('day', created_at, returned_at), 0.9)  p90,
+       quantile_cont(date_diff('day', created_at, returned_at), 0.99) p99,
+       MAX(date_diff('day', created_at, returned_at)) max_days
+FROM orders WHERE returned_at IS NOT NULL;
+
+-- Q17 hand-calculated query
+.mode markdown
+CREATE VIEW orders AS SELECT * FROM read_csv_auto('data/raw/orders.csv');
+
+-- Q17 hand-verified number (F-21, #27)
+WITH qualifying AS (            -- #25: every status except Cancelled
+  SELECT user_id, created_at
+  FROM orders
+  WHERE status <> 'Cancelled'
+),
+first_order AS (                -- #25: earliest qualifying order over ALL history
+  SELECT user_id, MIN(created_at) AS first_order_at
+  FROM qualifying
+  GROUP BY user_id
+),
+week_customers AS (             -- #11, #12, #26: ISO week of 2022-05-30, UTC, order time
+  SELECT DISTINCT user_id       -- #13: customer = orders.user_id
+  FROM qualifying
+  WHERE created_at >= TIMESTAMP '2022-05-30'
+    AND created_at <  TIMESTAMP '2022-06-06'
+)
+SELECT
+  COUNT(*)                                                        AS customers,
+  COUNT(*) FILTER (WHERE f.first_order_at >= TIMESTAMP '2022-05-30') AS new_customers,
+  COUNT(*) FILTER (WHERE f.first_order_at <  TIMESTAMP '2022-05-30') AS returning_customers
+FROM week_customers w
+JOIN first_order f USING (user_id);
 ```

@@ -21,7 +21,7 @@ Constraints:
 
 Options considered:
   A. Core then retention, two specs on one layered design (L-D, #14).
-     Spec 1: staging, item and order intermediates, weekly mart, Evidence page.
+     Spec 1: staging, item and order intermediates, weekly mart, reconciliation. Spec 1b: Evidence page (#23).
      Spec 2: customer-month intermediate, cohort retention and churn marts, a second page.
      Pros: each spec is small enough to run the full loop; Spec 2 builds on reviewed, reconciled layers; rules are applied in one model.
      Cons: two passes through stages 4-7; retention arrives later.
@@ -46,6 +46,7 @@ Key choices made in this stage:
   - Scope: category to v1.1 (#15); churn and retention in v1 via Spec 2 (#16)
   - Dashboard: Evidence, marts-only queries (#17)
   - Structure: dbt at repo root, Evidence in dashboard/ (#18-20)
+  - Spec split: Spec 1 (data) and Spec 1b (dashboard) (#23, revised 2026-10-27)
 
 What would change this:
 1. Revenue must tie to the books or to cash, or a published week must never change: revenue moves to event-dated (K1-C).
