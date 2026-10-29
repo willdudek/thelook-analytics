@@ -1,7 +1,11 @@
 data/
-samples/
 *.duckdb
+*.duckdb.wal
 .env
 .venv/
 .DS_Store
 notes.txt
+target/
+logs/
+dbt_packages/
+.user.yml

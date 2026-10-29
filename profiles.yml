@@ -1,0 +1,8 @@
+thelook_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: dev.duckdb
+      settings:
+        TimeZone: UTC
