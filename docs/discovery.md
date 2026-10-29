@@ -1,8 +1,7 @@
 # Discovery: thelook-analytics v1
 
 Stage 2 (Discover) of the Two Brains loop. Completed 2026-10-15.
-Source: TheLook eCommerce Kaggle snapshot in `data/raw/`. Profiled in the DuckDB v1.5.5 CLI; queries in Appendix A.
-Numbering here (F-, C-, K-) supersedes the working numbers used in chat.
+   Source: TheLook eCommerce Kaggle snapshot in `data/raw/`. Profiled in the DuckDB v1.5.5 CLI; F-18, F-21 and F-23 re-verified on v2.0.0 (F-24). Queries in Appendix A.
 
 ## 1. Sources
 
@@ -61,6 +60,7 @@ All columns infer as nullable (CSV inference); actual null checks are in the fin
 - **F-21.** Hand-verified, ISO week 2022-05-30 (#27, Q17): customers = 3601, new_customers = 2361, returning_customers = 1240. new + returning = customers.
 - **F-22.** Spec review checks, 2026-10-27: 106,200 qualifying orders (status <> 'Cancelled') from 71,951 distinct customers. All 179 ISO weeks from 2019-01-07 to 2022-06-06 have orders. Rounding sale_price to DECIMAL(18,2) per row gives the same weekly net revenue as summing then rounding (0 weeks differ).
 - **F-23.** Casting sale_price to DECIMAL(18,2) per row and summing gives 10,758,880.12 over 180,952 rows, one cent below the F-10 float total (10,758,880.13). This is the gross anchor for staging, intermediate, and mart (#39). Q18, 2026-10-29.
+- **F-24.** Re-verified on DuckDB 2.0.0 (the engine dbt-duckdb uses), 2026-10-29: created_at and returned_at load as plain TIMESTAMP (Q19); per-row decimal total 10,758,880.12 (Q18); week 2022-05-30 customers 3,601 / new 2,361 / returning 1,240 (Q17). All match. #47
 
 ## 4. Constraints
 
