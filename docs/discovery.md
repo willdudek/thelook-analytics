@@ -51,7 +51,7 @@ All columns infer as nullable (CSV inference); actual null checks are in the fin
 - **F-15.** Daily orders grow gradually (about 370-470 per day in mid-to-late May), then spike June 3-6 (670, 917, 1,193, 1,869) and drop back to about 570-590 on June 7-8. The week of 2022-05-30 has 4,814 orders (vs 3,200 the week before), mostly from the spike. The week of 2022-06-06 is partial (3 days).
 - **F-16.** `order_items.created_at` does not match the order's `created_at`: 102,442 items are earlier and 78,506 later, ranging from 3h58m before to 4 days after. Item created_at is not a reliable event time.
 - **F-17.** No order is placed before its user's `created_at`.
-- **F-18.** No timestamp carries timezone information.
+- **F-18.** Timestamp strings end in ` UTC` (e.g. `2019-06-04 10:10:00 UTC`). `read_csv_auto` loads created_at and returned_at as plain TIMESTAMP holding UTC clock time; the CLI session TimeZone (America/Denver) does not affect them (Q19). Corrected 2026-10-29; the earlier text said no timezone information.
 - **F-20.** Return lag (orders.created_at to returned_at, all 12,570 returned orders): min 0 days, p50 5, p90 8, p99 10, max 11. No long tail.
 
 ### PII
@@ -60,7 +60,7 @@ All columns infer as nullable (CSV inference); actual null checks are in the fin
 ### Anchor values
 - **F-21.** Hand-verified, ISO week 2022-05-30 (#27, Q17): customers = 3601, new_customers = 2361, returning_customers = 1240. new + returning = customers.
 - **F-22.** Spec review checks, 2026-10-27: 106,200 qualifying orders (status <> 'Cancelled') from 71,951 distinct customers. All 179 ISO weeks from 2019-01-07 to 2022-06-06 have orders. Rounding sale_price to DECIMAL(18,2) per row gives the same weekly net revenue as summing then rounding (0 weeks differ).
-
+- **F-23.** Casting sale_price to DECIMAL(18,2) per row and summing gives 10,758,880.12 over 180,952 rows, one cent below the F-10 float total (10,758,880.13). This is the gross anchor for staging, intermediate, and mart (#39). Q18, 2026-10-29.
 
 ## 4. Constraints
 
@@ -89,7 +89,7 @@ All columns infer as nullable (CSV inference); actual null checks are in the fin
 3. Invariant test: num_of_item equals item count per order (F-3).
 4. Invariant test: item status equals order status (F-6). Catches a change in the data.
 5. Schema tests: unique and not_null keys, relationships between tables (F-1, F-2).
-6. Reconciliation anchor: all-status sale_price total of 10,758,880.13 from raw should survive staging unchanged (F-10).
+6. Reconciliation anchor: the all-status sale_price total, cast per row to DECIMAL(18,2), is 10,758,880.12 (F-23) and should survive staging unchanged. F-10's 10,758,880.13 is the float total.
 7. Source test: item/order user mismatch count equals 4 (F-4); warn if it changes (#13).
 
 ## Appendix A: Profiling queries
@@ -222,4 +222,13 @@ SELECT
   COUNT(*) FILTER (WHERE f.first_order_at <  TIMESTAMP '2022-05-30') AS returning_customers
 FROM week_customers w
 JOIN first_order f USING (user_id);
+-- Q18 per-row decimal total (F-23)
+SELECT SUM(sale_price::DECIMAL(18,2)) per_row_cast,
+      ROUND(SUM(sale_price), 2)      sum_then_round,
+      COUNT(*) n
+FROM items;
+
+-- Q19 loaded timestamp type (F-18)
+DESCRIBE SELECT created_at, returned_at FROM orders;
+SELECT current_setting('TimeZone');
 ```

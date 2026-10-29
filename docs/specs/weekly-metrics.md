@@ -1,4 +1,4 @@
-# Weekly metrics (Spec 1) -- Spec v1.0.2
+# Weekly metrics (Spec 1) -- Spec v1.0.3
 
 Stage 4 (Spec) of the Two Brains loop. Drafted 2026-10-27.
 References: F-, C-, K- point to docs/discovery.md; # to docs/decisions.md; P-, M-, S-, I-, MT-, T-, U- are defined in this spec.
@@ -52,6 +52,7 @@ data/samples/ (gitignored, #19). Not used by tests; tests run on full data (#18)
 - dbt-core 1.8 or later (dbt unit tests) and dbt-duckdb, managed by uv in pyproject.toml / uv.lock.
 - dbt_project.yml at repo root holds materializations per layer and the `return_window_days` var (section 5).
 - profiles.yml at repo root points to the local dev.duckdb; no secrets (#18).
+- profiles.yml sets DuckDB TimeZone to UTC under settings, so any timestamp conversion is UTC regardless of the machine (#40).
 - E-1 (answered 2026-10-27): pyproject.toml, uv.lock, dbt_project.yml, and profiles.yml do not exist. SETUP-01 creates them.
 - E-2 (answered 2026-10-27): dbt is not installed. SETUP-01 pins dbt-core >= 1.8 and dbt-duckdb.
 
@@ -108,7 +109,7 @@ Metrics:
 
 | # | Name | Definition (words) | Pseudocode | Sources | Caveats / cites |
 |---|---|---|---|---|---|
-| M-10 | gross_revenue | Sale price of all items, any status | `SUM(order_sale_price)` | int_orders | All weeks sum to 10,758,880.13 (F-10). #10 |
+| M-10 | gross_revenue | Sale price of all items, any status | `SUM(order_sale_price)` | int_orders | All weeks sum to 10,758,880.12 (F-23). #10 |
 | M-11 | cancelled_revenue | Sale price on Cancelled orders; stored positive, subtracted in the waterfall | `SUM(order_sale_price) WHERE status = 'Cancelled'` | int_orders | Order-dated; no cancelled_at (F-8). #10 |
 | M-12 | returned_revenue | Sale price on Returned orders; stored positive | `SUM(order_sale_price) WHERE status = 'Returned'` | int_orders | Order-dated; provisional weeks can still grow (#24). #10 |
 | M-13 | net_revenue | Gross less cancelled less returned | `gross_revenue - cancelled_revenue - returned_revenue` | mart | Checked by an independent raw path, T-15 (#21). #10 |
@@ -178,7 +179,7 @@ Dropped: all other columns, including cost and retail_price (C-4).
 | order_created_at | TIMESTAMP | no | stg_orders.created_at, renamed (4.1, #34) |
 | week_start | DATE | no | M-01 on order_created_at |
 
-**I-2. int_orders** (table). Grain: one row per order. Key: order_id. stg_orders plus int_order_items aggregated to order_id.
+**I-2. int_orders** (table). Grain: one row per order. Key: order_id. stg_orders left-joined to int_order_items aggregated to order_id (rule 4.24).
 
 | Column | Type | Nullable | Source / rule |
 |---|---|---|---|
@@ -196,7 +197,7 @@ Dropped: all other columns, including cost and retail_price (C-4).
 
 ### 3.5 Mart
 
-**MT-1. mart_weekly_metrics** (table). Grain: one row per ISO week from 2019-01-07 through 2022-06-06 on a spine (4.13). Key: week_start. This column list, in this order, is the interface Spec 1b builds against.
+**MT-1. mart_weekly_metrics** (table). Grain: one row per ISO week from 2019-01-07 through 2022-06-06 on a spine (4.13). Key: week_start. This column list, in this order, is the interface Spec 1b builds against. Enforced by a dbt model contract (rule 4.23).
 
 | # | Column | Type | Nullable | Metric |
 |---|---|---|---|---|
@@ -259,6 +260,10 @@ Sources and joins
 - 4.20 Raw CSVs are declared as dbt-duckdb external sources in the staging sources YAML; models read them only through `source()`. No seeds; no file paths in model SQL (#1, #37).
 - 4.21 Staging casts every kept column explicitly to the types in S-1 to S-3. Timestamps are plain TIMESTAMP, never TIMESTAMPTZ (#37).
 - 4.22 int_order_items joins stg_orders (inner; F-2 guarantees a match) and stg_products (left), so a missing product never drops revenue (#37).
+Contracts and consistency
+- 4.23 mart_weekly_metrics has an enforced dbt model contract: every MT-1 column with its listed type, and a not_null constraint on every column marked Nullable = no. MART-01 contracts columns 1-14; MART-02 adds 15-32 (#43, #45).
+- 4.24 int_orders = stg_orders left join (int_order_items aggregated to order_id). No coalesce on item_count or order_sale_price: an order without items fails T-23 rather than showing 0 (#43).
+- 4.25 week_start in int_order_items and int_orders uses the 4.2 expression on order_created_at. T-22 checks they agree (#42).
 
 ## 5. Configuration
 
@@ -267,7 +272,7 @@ Sources and joins
 | return_window_days | dbt var, dbt_project.yml | 11 | 4.16, T-11 (#24) |
 | Materialization | dbt_project.yml | staging: view; intermediate, marts: table | #14 |
 | Source locations | sources YAML in models/staging/ | the four CSVs in data/raw/ | 4.20 |
-
+| TimeZone | profiles.yml, settings | UTC | 4.2, 4.21 (#40) |
 Status literals ('Cancelled', 'Returned') stay in SQL, guarded by T-5. Expected test values are snapshot facts, not config; they change only through a logged decision (8.4).
 
 ## 6. Failure behavior
@@ -277,6 +282,8 @@ Status literals ('Cancelled', 'Returned') stay in SQL, guarded by T-5. Expected 
 - 6.3 Reruns are full rebuilds and idempotent: views recreated, tables replaced. Two consecutive builds produce identical marts.
 - 6.4 If T-6, T-10, or T-14 fails by cents, stop and report the difference. Do not change the cast or add a tolerance (#32).
 - 6.5 If any rule or pseudocode cannot be implemented as written, stop and report. Do not improvise.
+- 6.6 Expected warning, report and do not fix: dbt's "Configuration paths exist in your dbt_project.yml file which do not apply to any resources" while a layer has no models yet (#44).
+- 6.7 If dbt reports dev.duckdb is locked, stop and report. Do not delete, move, or rename dev.duckdb or change the profile path (#44).
 
 ## 7. Acceptance tests
 
@@ -288,10 +295,10 @@ Source and staging
 |---|---|---|---|
 | T-1 | unique and not_null: stg_orders.order_id, stg_order_items.order_item_id, stg_products.product_id, source users.id | schema | pass (F-1) |
 | T-2 | relationships: stg_order_items.order_id -> stg_orders.order_id; stg_order_items.product_id -> stg_products.product_id; stg_orders.user_id -> source users.id | schema | pass (F-2) |
-| T-3 | count of source order_items whose user_id differs from their source order's user_id; reads source() only | singular | = 4 (F-4); warn if not |
+| T-3 | count of source order_items whose user_id differs from their source order's user_id; reads source() only; returns one row (observed, expected) only when the count is not 4 (8.5) | singular | = 4 (F-4); warn if not |
 | T-4 | count of source order_items whose status differs from their source order's status; reads source() only | singular | = 0 (F-6) |
 | T-5 | accepted_values on stg_orders.status | schema | Processing, Shipped, Complete, Cancelled, Returned (F-5) |
-| T-6 | stg_order_items row count and SUM(sale_price) | singular | 180,952 and 10,758,880.13 (F-10) |
+| T-6 | stg_order_items row count and SUM(sale_price) | singular | 180,952 and 10,758,880.12 (F-23) |
 | T-7 | stg_orders row count | singular | 124,923 |
 
 Intermediate
@@ -300,17 +307,19 @@ Intermediate
 |---|---|---|---|
 | T-8 | int_order_items: order_item_id unique and not_null; row count | schema + singular | 180,952 |
 | T-9 | int_orders: order_id unique and not_null; row count; item_count = num_of_item on every row | schema + singular | 124,923 rows; 0 mismatches (F-3) |
-| T-10 | SUM(int_orders.order_sale_price) | singular | 10,758,880.13 |
+| T-10 | SUM(int_orders.order_sale_price) | singular | 10,758,880.12 (F-23) |
 | T-11 | for orders with returned_at: `date_diff('day', order_created_at, returned_at) <= return_window_days` (method of Q16) | singular | 0 violations (F-20); warn |
 | T-12 | for qualifying orders, first_qualifying_order_at <= order_created_at; first_qualifying_order_at is null only for users with no qualifying order | singular | 0 violations |
+| T-22 | every int_order_items row has week_start equal to its order's int_orders.week_start | singular | 0 violations (4.25) |
+| T-23 | not_null on int_orders: user_id, status, order_created_at, week_start, num_of_item, item_count, order_sale_price, is_qualifying | schema | pass (4.24) |
 
 Mart
 
 | # | Test | Type | Expected |
 |---|---|---|---|
 | T-13 | week_start unique and not_null; row count; min and max week_start | schema + singular | 179 rows; 2019-01-07 to 2022-06-06 (F-22) |
-| T-14 | SUM(gross_revenue) over all weeks | singular | 10,758,880.13 (F-10) |
-| T-15 | net revenue reconciliation (#21): from source() only, sum sale_price (each cast per 4.5) for orders not Cancelled or Returned, grouped by `date_trunc('week', orders.created_at)::DATE`; full outer join to the mart; mart weeks without raw rows must have net_revenue = 0 | singular | 0 weeks differing; exact match (F-22) |
+| T-14 | SUM(gross_revenue) over all weeks | singular | 10,758,880.12 (F-23) |
+| T-15 | net revenue reconciliation (#21): from source() only, sum sale_price (each cast per 4.5) for orders not Cancelled or Returned, grouped by `date_trunc('week', orders.created_at)::DATE`; full outer join to the mart; mart weeks without raw rows must have net_revenue = 0; Reads source() only; refs no model except mart_weekly_metrics and calls no project macro. | singular | 0 weeks differing; exact match (F-22) |
 | T-16 | week 2022-05-30: customers, new_customers, returning_customers | singular | 3,601 / 2,361 / 1,240 (F-21, #27) |
 | T-17 | new_customers + returning_customers = customers on every row | singular | 0 violations (#25) |
 | T-18 | SUM(orders) over all weeks | singular | 106,200 (F-22) |
@@ -334,9 +343,11 @@ Unit tests (dbt unit tests, fixtures use only columns in section 3)
 |---|---|---|---|
 | U-1 | int_orders | user's first order Cancelled, second Complete | first_qualifying_order_at = second order's created_at |
 | U-2 | int_orders | user with only Cancelled orders | first_qualifying_order_at null; is_qualifying false |
-| U-3 | int_order_items | orders at Sunday 23:59:59 and Monday 00:00:00 UTC | different week_start |
-| U-4 | mart_weekly_metrics | a week with zero qualifying orders | orders 0; aov null; next week's prior_orders = 0, not null |
+| U-3 | int_orders | orders at Sunday 23:59:59 and Monday 00:00:00 UTC | different week_start |
+| U-4 | mart_weekly_metrics | three consecutive weeks; the middle week has no orders of any status | middle week row exists; sums and counts 0; aov null (4.13) |
 | U-5 | mart_weekly_metrics | customer whose first qualifying order was in an earlier week | counted in returning_customers, not new_customers |
+| U-6 | mart_weekly_metrics | a week whose only orders are Cancelled | orders 0, customers 0, gross = cancelled, net 0, aov null |
+| U-7 | mart_weekly_metrics | the week after U-4's empty week | prior_orders = 0 and prior_gross_revenue = 0, not null (MART-02) |
 
 ## 8. Operational notes
 
@@ -344,14 +355,16 @@ Unit tests (dbt unit tests, fixtures use only columns in section 3)
 - 8.2 Reprocess: rebuild. Nothing is incremental. A return-policy change is an edit to `return_window_days` and a rebuild.
 - 8.3 Monitor: warnings on T-3 and T-11 mean the data changed shape. Log and decide.
 - 8.4 Data refresh: replace the CSVs in data/raw/ and rebuild. These snapshot expectations fail by design and change only through a logged decision: T-3, T-6, T-7, T-8, T-9, T-10, T-13, T-14, T-16, T-18, T-19, T-20.
-- 8.5 Test file naming: `tests/assert_<subject>.sql`, with the T-number and expected-value citation (F- or #) in a header comment. Expected values are literals in the test.
+- 8.5 Test file naming: `tests/assert_<subject>.sql`, with the T-number and expected-value citation (F- or #) in a header comment. Expected values are literals in the test. A test expecting 0 violations may return the violating rows. A test expecting a nonzero count or a total returns one row, showing observed and expected, only when they differ (#41).
+- 8.6 Inspect dev.duckdb read-only while reviewing (`duckdb -readonly dev.duckdb`) and close it before running a dispatch (#44).
 
 ## 9. Decisions log
 
-Decisions live in docs/decisions.md. This spec implements #10-#13, #21, #24-#28 and #29-#37.
+Decisions live in docs/decisions.md. This spec implements #10-#13, #21, #24-#28, #29-#37 and #39-#45.
 
 | Version | Date | Change |
 |---|---|---|
 | v1.0 | 2026-10-27 | First version. |
 | v1.0.1 | 2026-10-27 | Removed references to chat-only working numbers (AM-, Q-); environment open items stated in full as E-1 and E-2. No rule or test changed. |
 | v1.0.2 | 2026-10-27 | E-1 and E-2 answered: no project files, dbt not installed; SETUP-01 creates them. No rule or test changed. |
+| v1.0.3 | 2026-10-29 | Pre-dispatch pressure test. Gross anchor 10,758,880.12 in M-10, T-6, T-10, T-14 (F-23, #39). TimeZone UTC (#40). Count-test shape in 8.5 (#41). U-3 retargeted, U-4 redefined, U-6, U-7, T-22 added (#42). Rules 4.23-4.25, T-23 (#43). 6.6, 6.7, 8.6 (#44). |

@@ -1,33 +1,51 @@
 SETUP-01: Python + dbt project scaffold
 
 Read first: CLAUDE.md, docs/structure.md, docs/specs/weekly-metrics.md
-sections 2.4, 3.1, and 5. If structure.md or CLAUDE.md conflicts with this
-prompt on a file location or name, follow the file and report the conflict.
+sections 2.4, 3.1, and 5.
 
 Build:
-- A uv project at the repo root: pyproject.toml, uv.lock, .python-version
-  pinned to 3.12. Dependencies: dbt-core >= 1.8 and dbt-duckdb. Nothing else.
+- A uv project at the repo root, created with `uv init --bare`. Pin Python
+  with `uv python pin 3.12` (writes .python-version); requires-python
+  >= 3.12. Add exactly two dependencies: dbt-core >= 1.8 and dbt-duckdb.
+  uv may download a managed Python 3.12; that is allowed.
 - dbt_project.yml at the repo root. Project name thelook_analytics, profile
   thelook_analytics. Materializations: staging = view, intermediate = table,
-  marts = table (spec section 5, #14). Var return_window_days: 11.
+  marts = table (spec section 5). Var return_window_days: 11.
 - profiles.yml at the repo root. Profile thelook_analytics, target dev,
-  type duckdb, path dev.duckdb (relative to the repo root). No secrets.
-- Make sure .gitignore covers dev.duckdb, .venv/, target/, logs/, and
-  dbt_packages/. Add only the missing lines.
+  type duckdb, path dev.duckdb, settings TimeZone: UTC (spec 2.4, #40).
+  No secrets.
+- Replace .gitignore with exactly these lines, in this order:
+    data/
+    *.duckdb
+    *.duckdb.wal
+    .env
+    .venv/
+    .DS_Store
+    notes.txt
+    target/
+    logs/
+    dbt_packages/
+    .user.yml
 
 Do not:
-- Run dbt init, or create any example models.
+- Run dbt init, or create any example models, README.md, main.py, or src/.
 - Create sources YAML, models, tests, seeds, packages.yml, or anything in
   dashboard/. Those belong to later dispatches.
 - Add any dependency beyond dbt-core and dbt-duckdb.
-- Touch data/raw/.
+- Touch data/ or ~/.dbt/.
 
 Definition of done (show the output of each):
 1. uv run dbt --version shows dbt-core >= 1.8 and the duckdb plugin.
-2. uv run dbt debug ends with "All checks passed!"
-3. git status shows only the new and changed files listed above. dev.duckdb
-   does not appear.
-4. git check-ignore dev.duckdb prints dev.duckdb.
+2. uv run dbt debug ends with "All checks passed!", and its output shows
+   profiles.yml loaded from the repo root, not ~/.dbt/.
+3. uv run dbt show --inline "select current_setting('TimeZone') as tz"
+   returns UTC. The "Configuration paths ... do not apply" warning is
+   expected here.
+4. git status --short shows exactly: modified .gitignore; new
+   .python-version, pyproject.toml, uv.lock, dbt_project.yml, profiles.yml.
+   Nothing else.
+5. git check-ignore -v dev.duckdb dev.duckdb.wal .venv target logs .user.yml
+   lists all six as ignored.
 
 Stop condition: if any step fails twice with the same error, stop and
 report the error output. Do not try workarounds such as a different
